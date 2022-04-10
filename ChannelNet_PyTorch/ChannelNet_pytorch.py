@@ -32,7 +32,8 @@ def psnr(target, ref):
     return 20 * math.log10(255. / rmse)
 
 def interpolation(noisy , SNR , Number_of_pilot , interp):
-    noisy_image = np.zeros((40000,72,14,2))
+    N, N_S, N_D = noisy.shape
+    noisy_image = np.zeros((N, N_S, N_D,2))
 
     noisy_image[:,:,:,0] = np.real(noisy)
     noisy_image[:,:,:,1] = np.imag(noisy)
@@ -56,7 +57,7 @@ def interpolation(noisy , SNR , Number_of_pilot , interp):
 
 
 
-    interp_noisy = np.zeros((40000,72,14,2))
+    interp_noisy = np.zeros((N, N_S, N_D,2))
 
     for i in range(len(noisy)):
         z = [noisy_image[i,j,k,0] for j,k in zip(r,c)]
@@ -81,7 +82,7 @@ def interpolation(noisy , SNR , Number_of_pilot , interp):
             interp_noisy[i,:,:,1] = z_intp
 
 
-    interp_noisy = np.concatenate((interp_noisy[:,:,:,0], interp_noisy[:,:,:,1]), axis=0).reshape(80000, 72, 14, 1)
+    interp_noisy = np.concatenate((interp_noisy[:,:,:,0], interp_noisy[:,:,:,1]), axis=0).reshape(2*N, N_S, N_D, 1)
    
     
     return interp_noisy
@@ -105,10 +106,11 @@ if __name__ == "__main__":
     print(f"SNR: {SNR}\nNumber of pilots: {Number_of_pilots}")
     interp_noisy = interpolation(noisy_input , SNR , Number_of_pilots , 'rbf')
 
-    perfect_image = np.zeros(perfect.shape)
+    N, N_S, N_D = perfect.shape
+    perfect_image = np.zeros(N, N_S, N_D, 2)
     perfect_image[:,:,:,0] = np.real(perfect)
     perfect_image[:,:,:,1] = np.imag(perfect)
-    perfect_image = np.concatenate((perfect_image[:,:,:,0], perfect_image[:,:,:,1]), axis=0).reshape(2*len(perfect), 72, 14, 1)
+    perfect_image = np.concatenate((perfect_image[:,:,:,0], perfect_image[:,:,:,1]), axis=0).reshape(2*N, N_S, N_D, 1)
     
     # import pdb;pdb.set_trace()
     print("==========================================================")
