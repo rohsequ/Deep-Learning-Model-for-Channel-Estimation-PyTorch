@@ -15,3 +15,7 @@ https://drive.google.com/file/d/1mwnfXalDUTebreMZqUNHRGAENAeJL1Nn/view?usp=shari
 
 Noisy channels (SNR = 22dB);  
 https://drive.google.com/file/d/1j0BcBoVKCDInryqfCRPjINAUrFrI_rxB/view?usp=sharing
+
+# Steps before you run the model.
+
+Download the Perfect data from the Google Drive and the noisy Data into data/ folder.
