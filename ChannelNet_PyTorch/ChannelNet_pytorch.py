@@ -107,7 +107,7 @@ if __name__ == "__main__":
     interp_noisy = interpolation(noisy_input , SNR , Number_of_pilots , 'rbf')
 
     N, N_S, N_D = perfect.shape
-    perfect_image = np.zeros(N, N_S, N_D, 2)
+    perfect_image = np.zeros((N, N_S, N_D, 2))
     perfect_image[:,:,:,0] = np.real(perfect)
     perfect_image[:,:,:,1] = np.imag(perfect)
     perfect_image = np.concatenate((perfect_image[:,:,:,0], perfect_image[:,:,:,1]), axis=0).reshape(2*N, N_S, N_D, 1)
