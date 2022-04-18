@@ -114,6 +114,8 @@ def train_SRCNN(train_size, test_size, dataset, n_epochs, model_name, device, lo
     if load_from_checkpoint:
         if os.path.isfile(f"saved_models\{model_name}_checkpoint_latest.pt"):
             model.load_state_dict(torch.load(f"saved_models\{model_name}_checkpoint_latest.pt"))
+
+    print(f"Model Loaded in Device: {device}")
     model.to(device)
 
     criterion = torch.nn.MSELoss()
@@ -157,8 +159,9 @@ def train_SRCNN(train_size, test_size, dataset, n_epochs, model_name, device, lo
 
             running_loss += loss.item()
             total += labels.size(0)
-            pbar.set_description('Epoch: %d | Loss: %.3f| Avg Loss: %.3f | Eval Loss: %.3f'%(epoch, loss.item(), train_loss, after_train_loss))
+            pbar.set_description('Epoch: %d | Loss: %.3f| Avg Loss: %.3f | Eval Loss: %.3f'%(epoch, loss.item(), train_loss, after_train_loss/len(test_dataloader)))
         train_loss= running_loss/len(train_dataloader)
+        running_loss = 0
         train_losses.append(train_loss)
         print(" ")
         # Evaluation After Training
@@ -192,6 +195,7 @@ def train_DnCNN(train_size, test_size, dataset, n_epochs, model_name, device, pa
     if load_from_checkpoint:
         if os.path.isfile(f"saved_models\{model_name}_checkpoint_latest.pt"):
             model.load_state_dict(torch.load(f"saved_models\{model_name}_checkpoint_latest.pt"))
+    print(f"Model Loaded in Device: {device}")
     model.to(device)
 
     criterion = torch.nn.MSELoss()
@@ -235,8 +239,9 @@ def train_DnCNN(train_size, test_size, dataset, n_epochs, model_name, device, pa
 
             running_loss += loss.item()
             total += labels.size(0)
-            pbar.set_description('Epoch: %d | Loss: %.3f| Avg Loss: %.3f | Eval Loss: %.3f'%(epoch, loss.item(), train_loss, after_train_loss))
+            pbar.set_description('Epoch: %d | Loss: %.3f| Avg Loss: %.3f | Eval Loss: %.3f'%(epoch, loss.item(), train_loss, after_train_loss/len(test_dataloader)))
         train_loss= running_loss/len(train_dataloader)
+        running_loss = 0
         train_losses.append(train_loss)
         print(" ")
         # Evaluation After Training

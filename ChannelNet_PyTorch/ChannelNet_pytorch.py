@@ -8,6 +8,7 @@ from pytorch_models import train_SRCNN, train_DnCNN
 import torch
 from torch.utils.data import TensorDataset
 from datetime import datetime
+from tqdm import tqdm
 
 
 
@@ -15,7 +16,7 @@ from datetime import datetime
 #
 ##################################################################
 
-n_epochs = 5
+n_epochs = 200
 load_from_checkpoint = True
 
 
@@ -31,54 +32,63 @@ def psnr(target, ref):
 
     return 20 * math.log10(255. / rmse)
 
-def interpolation(noisy , SNR , Number_of_pilot , interp):
+def interpolation(noisy , SNR , Number_of_pilot , interp, K, P, model_use="new"):
     N, N_S, N_D = noisy.shape
     noisy_image = np.zeros((N, N_S, N_D,2))
 
     noisy_image[:,:,:,0] = np.real(noisy)
     noisy_image[:,:,:,1] = np.imag(noisy)
 
+    if model_use == "old":
+        if (Number_of_pilot == 48):
+            idx = [14*i for i in range(1, 72,6)]+[4+14*(i) for i in range(4, 72,6)]+[7+14*(i) for i in range(1, 72,6)]+[11+14*(i) for i in range(4, 72,6)]
+        elif (Number_of_pilot == 16):
+            idx= [4+14*(i) for i in range(1, 72,9)]+[9+14*(i) for i in range(4, 72,9)]
+        elif (Number_of_pilot == 24):
+            idx = [14*i for i in range(1,72,9)]+ [6+14*i for i in range(4,72,9)]+ [11+14*i for i in range(1,72,9)]
+        elif (Number_of_pilot == 8):
+            idx = [4+14*(i) for  i in range(5,72,18)]+[9+14*(i) for i in range(8,72,18)]
+        elif (Number_of_pilot == 36):
+            idx = [14*(i) for  i in range(1,72,6)]+[6+14*(i) for i in range(4,72,6)] + [11+14*i for i in range(1,72,6)]
+        
+        r = [x//14 for x in idx]
+        c = [x%14 for x in idx]
+    else:
+        allCarriers = np.arange(K)  # indices of all subcarriers ([0, 1, ... K-1])
 
-    if (Number_of_pilot == 48):
-        idx = [14*i for i in range(1, 72,6)]+[4+14*(i) for i in range(4, 72,6)]+[7+14*(i) for i in range(1, 72,6)]+[11+14*(i) for i in range(4, 72,6)]
-    elif (Number_of_pilot == 16):
-        idx= [4+14*(i) for i in range(1, 72,9)]+[9+14*(i) for i in range(4, 72,9)]
-    elif (Number_of_pilot == 24):
-        idx = [14*i for i in range(1,72,9)]+ [6+14*i for i in range(4,72,9)]+ [11+14*i for i in range(1,72,9)]
-    elif (Number_of_pilot == 8):
-      idx = [4+14*(i) for  i in range(5,72,18)]+[9+14*(i) for i in range(8,72,18)]
-    elif (Number_of_pilot == 36):
-      idx = [14*(i) for  i in range(1,72,6)]+[6+14*(i) for i in range(4,72,6)] + [11+14*i for i in range(1,72,6)]
-
-
-
-    r = [x//14 for x in idx]
-    c = [x%14 for x in idx]
-
-
+        pilotCarriers = allCarriers[::K//P]
+        pilotCarriers = np.hstack([pilotCarriers, np.array([allCarriers[-1]])])
+        r = []
+        c= []
+        temp = np.zeros(len(pilotCarriers), dtype=np.int)
+        for i in range(14):
+            r.append(pilotCarriers)
+            c.append(temp+i)
+        r = np.hstack(r)
+        c = np.hstack(c)
 
     interp_noisy = np.zeros((N, N_S, N_D,2))
 
-    for i in range(len(noisy)):
+    for i in tqdm(range(len(noisy))):
         z = [noisy_image[i,j,k,0] for j,k in zip(r,c)]
         if(interp == 'rbf'):
             f = interpolate.Rbf(np.array(r).astype(float), np.array(c).astype(float), z,function='gaussian')
-            X , Y = np.meshgrid(range(72),range(14))
+            X , Y = np.meshgrid(range(N_S),range(N_D))
             z_intp = f(X, Y)
             interp_noisy[i,:,:,0] = z_intp.T
         elif(interp == 'spline'):
             tck = interpolate.bisplrep(np.array(r).astype(float), np.array(c).astype(float), z)
-            z_intp = interpolate.bisplev(range(72),range(14),tck)
+            z_intp = interpolate.bisplev(range(N_S),range(N_D),tck)
             interp_noisy[i,:,:,0] = z_intp
         z = [noisy_image[i,j,k,1] for j,k in zip(r,c)]
         if(interp == 'rbf'):
             f = interpolate.Rbf(np.array(r).astype(float), np.array(c).astype(float), z,function='gaussian')
-            X , Y = np.meshgrid(range(72),range(14))
+            X , Y = np.meshgrid(range(N_S),range(N_D))
             z_intp = f(X, Y)
             interp_noisy[i,:,:,1] = z_intp.T
         elif(interp == 'spline'):
             tck = interpolate.bisplrep(np.array(r).astype(float), np.array(c).astype(float), z)
-            z_intp = interpolate.bisplev(range(72),range(14),tck)
+            z_intp = interpolate.bisplev(range(N_S),range(N_D),tck)
             interp_noisy[i,:,:,1] = z_intp
 
 
@@ -91,20 +101,25 @@ def interpolation(noisy , SNR , Number_of_pilot , interp):
 if __name__ == "__main__":
     # load datasets 
     channel_model = "VehA"
-    SNR = 12
+    SNR = 25
     Number_of_pilots = 48
+    Number_of_Subcarriers = 64
+    Number_of_Pilots_per_symbol = 8 # Comb type OFDM
     
     print("Reading the Noisy and Perfect Data files in .mat format.")
 
-    perfect = scipy.io.loadmat("data\Perfect_H_40000.mat") ['My_perfect_H']
-    noisy_input = scipy.io.loadmat("data\My_Noisy_H_12.mat") ['My_noisy_H']  
+    # perfect = scipy.io.loadmat("data\Perfect_H_40000.mat") ['My_perfect_H']
+    # noisy_input = scipy.io.loadmat("data\My_Noisy_H_12.mat") ['My_noisy_H']  
+
+    perfect = scipy.io.loadmat("data\\Perfect_H_dataset_for_" + str(SNR) + "db") ['Perfect_H']
+    noisy_input = scipy.io.loadmat("data\\Noisy_H_dataset_for_" + str(SNR) + "db") ['Noisy_H'] 
 
     print(" \n ")
     print("Read the Noisy and Perfect Data files.")  
     print(" \n ")   
     print("Interpolating the noisy data into LR images")
     print(f"SNR: {SNR}\nNumber of pilots: {Number_of_pilots}")
-    interp_noisy = interpolation(noisy_input , SNR , Number_of_pilots , 'rbf')
+    interp_noisy = interpolation(noisy_input , SNR , Number_of_pilots , 'rbf', K=Number_of_Subcarriers, P=Number_of_Pilots_per_symbol, model_use="new")
 
     N, N_S, N_D = perfect.shape
     perfect_image = np.zeros((N, N_S, N_D, 2))
@@ -112,7 +127,7 @@ if __name__ == "__main__":
     perfect_image[:,:,:,1] = np.imag(perfect)
     perfect_image = np.concatenate((perfect_image[:,:,:,0], perfect_image[:,:,:,1]), axis=0).reshape(2*N, N_S, N_D, 1)
     
-    # import pdb;pdb.set_trace()
+    import pdb;pdb.set_trace()
     print("==========================================================")
  
     ####### ------ training SRCNN ------ #######
@@ -133,7 +148,7 @@ if __name__ == "__main__":
 
     print("Data is ready for training.\nTraining the SRCNN first....")
 
-    train_SRCNN(train_size, test_size, dataset=my_dataset, n_epochs=n_epochs, model_name=model_name, device=device, load_from_checkpoint=load_from_checkpoint)
+    train_SRCNN(train_size, test_size, dataset=my_dataset, n_epochs=1000, model_name=model_name, device=device, load_from_checkpoint=load_from_checkpoint)
 
     print("Data is ready for training.\nTraining the DnCNN first....")
     model_name = "DnCNN"
